@@ -24,6 +24,7 @@ async def get_lancamentos(
         query = """
         SELECT 
             fl.sk_tempo, fl.sk_conta, fl.sk_centro_custo,
+            fl.sk_produto, fl.sk_fornecedor,
             fl.valor, fl.descricao, fl.origem_dados
         FROM fato_lancamentos fl
         JOIN dim_tempo dt ON fl.sk_tempo = dt.sk_tempo

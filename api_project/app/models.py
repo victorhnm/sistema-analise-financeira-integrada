@@ -47,6 +47,8 @@ class FatoLancamentoResponse(BaseModel):
     sk_tempo: int  # dim_tempo usa integer
     sk_conta: str  # outras dimensões usam string (MD5)
     sk_centro_custo: str
+    sk_produto: Optional[str] = None  # Pode ser NULL
+    sk_fornecedor: Optional[str] = None  # Pode ser NULL
     valor: Decimal
     descricao: Optional[str] = None
     origem_dados: str
