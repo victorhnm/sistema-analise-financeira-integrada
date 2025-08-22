@@ -19,7 +19,7 @@ class DimCentroCustoResponse(BaseModel):
     gerencia: str
 
 class DimTempoResponse(BaseModel):
-    sk_tempo: str
+    sk_tempo: int  # dim_tempo usa integer como PK
     data: date
     ano: int
     mes: int
@@ -44,16 +44,16 @@ class DimFornecedorResponse(BaseModel):
 
 # Modelos para Fatos
 class FatoLancamentoResponse(BaseModel):
-    sk_tempo: str
-    sk_conta: str
+    sk_tempo: int  # dim_tempo usa integer
+    sk_conta: str  # outras dimensões usam string (MD5)
     sk_centro_custo: str
     valor: Decimal
     descricao: Optional[str] = None
     origem_dados: str
 
 class FatoCaixaResponse(BaseModel):
-    sk_tempo: str
-    sk_conta: str
+    sk_tempo: int  # dim_tempo usa integer
+    sk_conta: str  # outras dimensões usam string (MD5)
     sk_centro_custo: str
     valor_entrada: Optional[Decimal] = Field(default=0)
     valor_saida: Optional[Decimal] = Field(default=0)
