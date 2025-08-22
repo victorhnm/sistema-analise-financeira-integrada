@@ -1,0 +1,30 @@
+# docker-compose.yml
+
+version: '3.8'
+
+services:
+  # Nome do nosso serviço de banco de dados
+  db:
+    # Imagem oficial do PostgreSQL. Usar uma versão específica é uma boa prática.
+    image: postgres:15
+    container_name: anfin-postgres-db
+    
+    # Reinicia o container automaticamente se ele parar.
+    restart: always
+    
+    # Variáveis de ambiente para configurar o banco de dados.
+    # Usaremos um arquivo .env para manter as senhas seguras.
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    
+    # Mapeia a porta 5432 do container para a porta 5432 da sua máquina.
+    # Formato: "porta-no-seu-pc:porta-no-container"
+    ports:
+      - "5432:5432"
+      
+    # Garante que os dados do banco não sejam perdidos ao desligar o container.
+    # Ele cria uma pasta 'postgres-data' na raiz do seu projeto.
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data

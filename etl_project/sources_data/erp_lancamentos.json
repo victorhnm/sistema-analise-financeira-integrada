@@ -1,0 +1,34 @@
+[
+    {
+        "id_transacao": "TXN-2024-07-01-001",
+        "data": "2024-07-01",
+        "conta": "4.1.1.01",
+        "centro_custo_id": "CC_VENDAS",
+        "valor": 7500.00,
+        "detalhes": "Venda Faturada Cliente A"
+    },
+    {
+        "id_transacao": "TXN-2024-07-02-002",
+        "data": "2024-07-02",
+        "conta": "5.3.1.04",
+        "centro_custo_id": "CC_TI",
+        "valor": -1800.00,
+        "detalhes": "Licença de Software X"
+    },
+    {
+        "id_transacao": "TXN-2024-07-03-003",
+        "data": "2024-07-03",
+        "conta": "5.3.1.09",
+        "centro_custo_id": "CC_ADM",
+        "valor": -450.75,
+        "detalhes": "Serviços de Contabilidade"
+    },
+    {
+        "id_transacao": "TXN-2024-07-04-004",
+        "data": "2024-07-04",
+        "conta": "4.1.1.01",
+        "centro_custo_id": "CC_VENDAS",
+        "valor": 12300.25,
+        "detalhes": "Venda Faturada Cliente B"
+    }
+]

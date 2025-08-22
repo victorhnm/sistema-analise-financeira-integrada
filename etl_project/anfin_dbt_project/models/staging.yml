@@ -1,0 +1,15 @@
+# anfin_dbt_project/models/staging.yml
+
+version: 2
+
+sources:
+  - name: anfin_staging
+    database: aurora_db # O nome do nosso banco de dados
+    schema: public      # O schema onde estão as tabelas
+    tables:
+      - name: stg_erp_lancamentos
+      - name: stg_conciliacao_bancaria
+      - name: stg_planilha_mensal
+      - name: stg_banco_transacional
+      - name: stg_metas_vendas
+      - name: dim_tempo

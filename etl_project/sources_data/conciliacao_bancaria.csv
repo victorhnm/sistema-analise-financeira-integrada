@@ -1,0 +1,8 @@
+data,historico,valor,tipo
+2024-07-01,"Pagamento Fornecedor ACME",-1500.50,"SAIDA"
+2024-07-01,"Recebimento Cliente Corp",5000.00,"ENTRADA"
+2024-07-02,"Salários Funcionários",-12500.75,"SAIDA"
+2024-07-03,"Pagamento Aluguel Escritório",-3000.00,"SAIDA"
+2024-07-05,"Venda Online #1023",150.25,"ENTRADA"
+2024-07-05,"Recebimento Cliente X",2300.00,"ENTRADA"
+2024-07-06,"Compra de Material de Escritório",-250.99,"SAIDA"

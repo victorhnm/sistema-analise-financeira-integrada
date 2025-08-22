@@ -1,0 +1,13 @@
+# requirements.txt
+
+# Para manipulação de dados em formato de tabela
+pandas
+
+# Para ler arquivos .env e proteger nossas senhas
+python-dotenv
+
+# Conector para o banco de dados PostgreSQL
+psycopg2-binary
+
+# Necessário para o Pandas ler arquivos Excel (.xlsx)
+openpyxl

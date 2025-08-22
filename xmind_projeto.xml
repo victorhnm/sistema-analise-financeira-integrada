@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <body>
+    <outline text="Projeto: Análise Financeira Integrada">
+      <outline text="Configuração do Ambiente">
+        <outline text="&lt;b&gt;Docker e WSL&lt;/b&gt;">
+          <outline text="Instalar Docker Desktop ✅"/>
+          <outline text="Corrigir e atualizar WSL ✅"/>
+        </outline>
+        <outline text="&lt;b&gt;PostgreSQL com Docker&lt;/b&gt;">
+          <outline text="Criar docker-compose.yml ✅"/>
+          <outline text="Criar arquivo .env com senhas ✅"/>
+          <outline text="Executar docker-compose up -d ✅"/>
+        </outline>
+        <outline text="&lt;b&gt;Banco de Dados está no ar!&lt;/b&gt; ✅"/>
+      </outline>
+      <outline text="Visão &amp; Objetivo">
+        <outline text="&lt;b&gt;Problema:&lt;/b&gt; Gasto de ~80hs/mês em consolidação manual, custo de oportunidade de R$2.5M."/>
+        <outline text="&lt;b&gt;Solução:&lt;/b&gt; Criar um &quot;Single Source of Truth&quot; para automação e análise."/>
+        <outline text="&lt;b&gt;Métricas de Sucesso:&lt;/b&gt;">
+          <outline text="Redução de 70% no tempo de consolidação."/>
+          <outline text="Economia simulada de R$2.5M."/>
+        </outline>
+      </outline>
+      <outline text="Arquitetura">
+        <outline text="&lt;b&gt;Padrão:&lt;/b&gt; Modern Data Stack simplificado (ELT)."/>
+        <outline text="&lt;b&gt;Componentes:&lt;/b&gt;">
+          <outline text="Fontes de Dados (5)"/>
+          <outline text="Data Warehouse (PostgreSQL)"/>
+          <outline text="ETL/ELT (Node.js/TypeScript)"/>
+          <outline text="Consumo (API REST + Front-end)"/>
+        </outline>
+      </outline>
+      <outline text="Modelo de Dados &amp; SQL">
+        <outline text="&lt;b&gt;Próximo Passo: Criar as tabelas!&lt;/b&gt;"/>
+        <outline text="&lt;b&gt;Esquema:&lt;/b&gt; Star Schema"/>
+        <outline text="&lt;b&gt;Dimensões&lt;/b&gt;">
+          <outline text="Dim_Tempo, Dim_Conta, Dim_CentroCusto, Dim_Produto, Dim_Fornecedor"/>
+        </outline>
+        <outline text="&lt;b&gt;Fatos&lt;/b&gt;">
+          <outline text="Fato_Lancamentos"/>
+          <outline text="Fato_Caixa"/>
+        </outline>
+      </outline>
+      <outline text="ETL (Node.js/TypeScript)"/>
+      <outline text="API (Node.js/Express)"/>
+      <outline text="Front-end (Next.js)"/>
+      <outline text="Roadmap"/>
+    </outline>
+  </body>
+</opml>

@@ -1,0 +1,26 @@
+[
+    {
+        "id_venda": "VENDA-001",
+        "data_venda": "2024-07-01T10:00:00Z",
+        "id_produto": "PROD-A",
+        "quantidade": 2,
+        "valor_unitario": 3750.00,
+        "cliente_id": "CLI-101"
+    },
+    {
+        "id_venda": "VENDA-002",
+        "data_venda": "2024-07-04T14:30:00Z",
+        "id_produto": "PROD-B",
+        "quantidade": 1,
+        "valor_unitario": 12300.25,
+        "cliente_id": "CLI-102"
+    },
+    {
+        "id_venda": "VENDA-003",
+        "data_venda": "2024-07-05T11:20:00Z",
+        "id_produto": "PROD-C",
+        "quantidade": 10,
+        "valor_unitario": 15.025,
+        "cliente_id": "CLI-103"
+    }
+]
