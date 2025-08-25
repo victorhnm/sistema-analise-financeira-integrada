@@ -1,0 +1,132 @@
+# Integrated Financial Analysis - .gitignore
+
+# Environment & Secrets
+.env
+.env.local
+.env.production
+*.key
+*.pem
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Database
+*.db
+*.sqlite3
+*.sqlite
+*.db-journal
+postgres_data/
+*.sql.backup
+*.dump
+
+# Power BI
+*.pbix.tmp
+*.pbit.tmp
+~AutoRecover.*
+~$*.pbix
+~$*.pbit
+
+# DBT
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+dbt_project/manifests/
+dbt_project/run_results.json
+dbt_project/manifest.json
+dbt_project/catalog.json
+
+# Logs & Temp Files
+*.log
+*.out
+*.err
+logs/
+temp/
+tmp/
+*.tmp
+*.temp
+
+# OS Specific
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# IDE & Editors
+.vscode/
+*.code-workspace
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Project Specific
+data/raw/*
+!data/raw/.gitkeep
+sec_downloads/
+edgar_data/
+company_facts_cache/
+reports/generated/
+exports/
+outputs/
+scripts/migration/migrar_*.py
+scripts/migration/check_*.py
+*.dev.db
+api_dev.log
+bi/temp/
+bi/*.tmp
+tests/fixtures/large_datasets/
+
+# Large files
+*.csv.large
+*.json.large
+*.parquet
+*.feather

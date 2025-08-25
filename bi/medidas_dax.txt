@@ -1,0 +1,406 @@
+// medidas_dax.txt - Medidas DAX para Power BI
+// Integrated Financial Analysis - Métricas TTM, Ratios e KPIs
+
+// =============================================================================
+// MEDIDAS BASE - RECEITA E LUCROS TTM
+// =============================================================================
+
+// Receita TTM - Trailing Twelve Months
+Receita TTM = 
+CALCULATE(
+    SUM('fact_financials_ttm'[revenue_ttm]) / 1000000,  // Converter para milhões
+    KEEPFILTERS('dim_date'[date_key] = MAX('dim_date'[date_key]))
+)
+
+// Net Income TTM
+Lucro Líquido TTM = 
+CALCULATE(
+    SUM('fact_financials_ttm'[net_income_ttm]) / 1000000,
+    KEEPFILTERS('dim_date'[date_key] = MAX('dim_date'[date_key]))
+)
+
+// Operating Income TTM
+Lucro Operacional TTM = 
+CALCULATE(
+    SUM('fact_financials_ttm'[operating_income_ttm]) / 1000000,
+    KEEPFILTERS('dim_date'[date_key] = MAX('dim_date'[date_key]))
+)
+
+// EBITDA TTM
+EBITDA TTM = 
+CALCULATE(
+    SUM('fact_financials_ttm'[ebitda_ttm]) / 1000000,
+    KEEPFILTERS('dim_date'[date_key] = MAX('dim_date'[date_key]))
+)
+
+// Free Cash Flow TTM
+Free Cash Flow TTM = 
+CALCULATE(
+    SUM('fact_financials_ttm'[free_cash_flow_ttm]) / 1000000,
+    KEEPFILTERS('dim_date'[date_key] = MAX('dim_date'[date_key]))
+)
+
+// =============================================================================
+// MARGEM E RENTABILIDADE
+// =============================================================================
+
+// Margem Bruta (Gross Margin)
+Margem Bruta = 
+VAR _GrossMargin = AVERAGE('fact_financials_ttm'[gross_margin])
+RETURN
+IF(
+    NOT ISBLANK(_GrossMargin),
+    _GrossMargin * 100,  // Converter para percentual
+    BLANK()
+)
+
+// Margem Operacional
+Margem Operacional = 
+VAR _OpMargin = AVERAGE('fact_financials_ttm'[operating_margin])
+RETURN
+IF(
+    NOT ISBLANK(_OpMargin),
+    _OpMargin * 100,
+    BLANK()
+)
+
+// Margem Líquida
+Margem Líquida = 
+VAR _NetMargin = AVERAGE('fact_financials_ttm'[net_margin])
+RETURN
+IF(
+    NOT ISBLANK(_NetMargin),
+    _NetMargin * 100,
+    BLANK()
+)
+
+// =============================================================================
+// RATIOS DE RETORNO
+// =============================================================================
+
+// Return on Equity (ROE)
+ROE = 
+VAR _ROE = AVERAGE('fact_financials_ttm'[roe])
+RETURN
+IF(
+    NOT ISBLANK(_ROE),
+    _ROE * 100,
+    BLANK()
+)
+
+// Return on Assets (ROA)
+ROA = 
+VAR _ROA = AVERAGE('fact_financials_ttm'[roa])
+RETURN
+IF(
+    NOT ISBLANK(_ROA),
+    _ROA * 100,
+    BLANK()
+)
+
+// =============================================================================
+// ALAVANCAGEM E LIQUIDEZ
+// =============================================================================
+
+// Debt-to-Equity Ratio
+Alavancagem (D/E) = 
+VAR _DebtEquity = AVERAGE('fact_financials_ttm'[debt_to_equity])
+RETURN
+IF(
+    NOT ISBLANK(_DebtEquity) && _DebtEquity >= 0,
+    _DebtEquity,
+    BLANK()
+)
+
+// Current Ratio (Liquidez Corrente)
+Liquidez Corrente = 
+VAR _CurrentRatio = AVERAGE('fact_financials_ttm'[current_ratio])
+RETURN
+IF(
+    NOT ISBLANK(_CurrentRatio) && _CurrentRatio >= 0,
+    _CurrentRatio,
+    BLANK()
+)
+
+// =============================================================================
+// CRESCIMENTO YEAR-OVER-YEAR
+// =============================================================================
+
+// Crescimento da Receita YoY
+Crescimento Receita YoY = 
+VAR _RevenueGrowth = AVERAGE('fact_financials_ttm'[revenue_growth_yoy])
+RETURN
+IF(
+    NOT ISBLANK(_RevenueGrowth),
+    _RevenueGrowth * 100,
+    BLANK()
+)
+
+// Crescimento do Lucro YoY
+Crescimento Lucro YoY = 
+VAR _IncomeGrowth = AVERAGE('fact_financials_ttm'[net_income_growth_yoy])
+RETURN
+IF(
+    NOT ISBLANK(_IncomeGrowth),
+    _IncomeGrowth * 100,
+    BLANK()
+)
+
+// =============================================================================
+// ANÁLISE DUPONT - DECOMPOSIÇÃO DO ROE
+// =============================================================================
+
+// DuPont: ROE = Net Margin × Asset Turnover × Equity Multiplier
+// Net Margin (já definida acima)
+// Asset Turnover = Revenue / Total Assets
+Asset Turnover = 
+VAR _Revenue = [Receita TTM] * 1000000  // Voltar para valor absoluto
+VAR _Assets = CALCULATE(
+    AVERAGE('fact_financials_quarterly'[total_assets]),
+    'dim_date'[date_key] = MAX('dim_date'[date_key])
+)
+RETURN
+IF(
+    NOT ISBLANK(_Revenue) && NOT ISBLANK(_Assets) && _Assets > 0,
+    _Revenue / _Assets,
+    BLANK()
+)
+
+// Equity Multiplier = Total Assets / Shareholders Equity
+Multiplicador de Capital = 
+VAR _Assets = CALCULATE(
+    AVERAGE('fact_financials_quarterly'[total_assets]),
+    'dim_date'[date_key] = MAX('dim_date'[date_key])
+)
+VAR _Equity = CALCULATE(
+    AVERAGE('fact_financials_quarterly'[shareholders_equity]),
+    'dim_date'[date_key] = MAX('dim_date'[date_key])
+)
+RETURN
+IF(
+    NOT ISBLANK(_Assets) && NOT ISBLANK(_Equity) && _Equity > 0,
+    _Assets / _Equity,
+    BLANK()
+)
+
+// DuPont ROE Calculado (validação)
+ROE DuPont = 
+VAR _NetMargin = [Margem Líquida] / 100
+VAR _AssetTurnover = [Asset Turnover]
+VAR _EquityMultiplier = [Multiplicador de Capital]
+RETURN
+IF(
+    NOT ISBLANK(_NetMargin) && NOT ISBLANK(_AssetTurnover) && NOT ISBLANK(_EquityMultiplier),
+    _NetMargin * _AssetTurnover * _EquityMultiplier * 100,
+    BLANK()
+)
+
+// =============================================================================
+// CICLO DE CONVERSÃO DE CAIXA
+// =============================================================================
+
+// Days Sales Outstanding
+DSO (dias) = 
+VAR _DSO = AVERAGE('fact_financials_ttm'[days_sales_outstanding])
+RETURN
+IF(
+    NOT ISBLANK(_DSO) && _DSO >= 0,
+    _DSO,
+    BLANK()
+)
+
+// Days Inventory Outstanding  
+DIO (dias) = 
+VAR _DIO = AVERAGE('fact_financials_ttm'[days_inventory_outstanding])
+RETURN
+IF(
+    NOT ISBLANK(_DIO) && _DIO >= 0,
+    _DIO,
+    BLANK()
+)
+
+// Days Payable Outstanding
+DPO (dias) = 
+VAR _DPO = AVERAGE('fact_financials_ttm'[days_payable_outstanding])
+RETURN
+IF(
+    NOT ISBLANK(_DPO) && _DPO >= 0,
+    _DPO,
+    BLANK()
+)
+
+// Cash Conversion Cycle = DSO + DIO - DPO
+Ciclo Conversão Caixa = 
+VAR _DSO = [DSO (dias)]
+VAR _DIO = [DIO (dias)]
+VAR _DPO = [DPO (dias)]
+RETURN
+IF(
+    NOT ISBLANK(_DSO) && NOT ISBLANK(_DIO) && NOT ISBLANK(_DPO),
+    _DSO + _DIO - _DPO,
+    BLANK()
+)
+
+// =============================================================================
+// MEDIDAS DE SUPORTE E FORMATAÇÃO
+// =============================================================================
+
+// Número de Empresas (para validação)
+Total Empresas = 
+DISTINCTCOUNT('fact_financials_ttm'[company_id])
+
+// Data Mais Recente
+Data Mais Recente = 
+MAX('dim_date'[date_key])
+
+// Empresa Selecionada (para título de gráficos)
+Empresa Selecionada = 
+IF(
+    HASONEVALUE('dim_company'[company_name]),
+    VALUES('dim_company'[company_name]),
+    "Múltiplas Empresas"
+)
+
+// Setor Selecionado
+Setor Selecionado = 
+IF(
+    HASONEVALUE('dim_company'[sector]),
+    VALUES('dim_company'[sector]),
+    "Múltiplos Setores"
+)
+
+// =============================================================================
+// MEDIDAS COMPARATIVAS (RANKING E BENCHMARKING)
+// =============================================================================
+
+// Rank por Receita no Setor
+Rank Receita Setor = 
+VAR _CurrentCompany = SELECTEDVALUE('dim_company'[company_id])
+VAR _CurrentSector = SELECTEDVALUE('dim_company'[sector])
+VAR _CurrentRevenue = [Receita TTM]
+RETURN
+IF(
+    NOT ISBLANK(_CurrentRevenue),
+    RANKX(
+        FILTER(
+            ALL('dim_company'),
+            'dim_company'[sector] = _CurrentSector
+        ),
+        CALCULATE([Receita TTM]),
+        ,
+        DESC,
+        DENSE
+    ),
+    BLANK()
+)
+
+// Mediana do Setor - ROE
+ROE Mediana Setor = 
+VAR _CurrentSector = SELECTEDVALUE('dim_company'[sector])
+RETURN
+IF(
+    NOT ISBLANK(_CurrentSector),
+    CALCULATE(
+        MEDIAN('fact_financials_ttm'[roe]) * 100,
+        ALL('dim_company'),
+        'dim_company'[sector] = _CurrentSector
+    ),
+    BLANK()
+)
+
+// Percentil da Empresa vs Setor (ROE)
+Percentil ROE vs Setor = 
+VAR _CurrentROE = [ROE] / 100  // Voltar para decimal
+VAR _CurrentSector = SELECTEDVALUE('dim_company'[sector])
+VAR _SectorValues = 
+    CALCULATETABLE(
+        VALUES('fact_financials_ttm'[roe]),
+        FILTER(
+            ALL('dim_company'),
+            'dim_company'[sector] = _CurrentSector
+        )
+    )
+VAR _LowerValues = 
+    COUNTROWS(
+        FILTER(
+            _SectorValues,
+            'fact_financials_ttm'[roe] < _CurrentROE
+        )
+    )
+VAR _TotalValues = COUNTROWS(_SectorValues)
+RETURN
+IF(
+    NOT ISBLANK(_CurrentROE) && _TotalValues > 0,
+    (_LowerValues / _TotalValues) * 100,
+    BLANK()
+)
+
+// =============================================================================
+// MEDIDAS DE ALERTA E QUALIDADE
+// =============================================================================
+
+// Alerta Liquidez (Current Ratio < 1.0)
+Alerta Liquidez = 
+IF(
+    [Liquidez Corrente] < 1.0,
+    "⚠️ Liquidez Baixa",
+    "✅ Liquidez OK"
+)
+
+// Alerta Crescimento (Receita YoY negativa)
+Alerta Crescimento = 
+IF(
+    [Crescimento Receita YoY] < 0,
+    "⚠️ Receita em Queda",
+    "✅ Crescimento Positivo"
+)
+
+// Score de Qualidade Financeira (0-100)
+Score Qualidade = 
+VAR _ROE = [ROE] / 100
+VAR _Margin = [Margem Líquida] / 100
+VAR _Growth = [Crescimento Receita YoY] / 100
+VAR _Liquidity = [Liquidez Corrente]
+VAR _Leverage = [Alavancagem (D/E)]
+
+VAR _ROEScore = IF(_ROE > 0.15, 25, IF(_ROE > 0.10, 15, IF(_ROE > 0.05, 10, 0)))
+VAR _MarginScore = IF(_Margin > 0.20, 25, IF(_Margin > 0.10, 15, IF(_Margin > 0.05, 10, 0)))
+VAR _GrowthScore = IF(_Growth > 0.15, 25, IF(_Growth > 0.05, 15, IF(_Growth >= 0, 10, 0)))
+VAR _LiquidityScore = IF(_Liquidity > 2.0, 15, IF(_Liquidity > 1.5, 10, IF(_Liquidity >= 1.0, 5, 0)))
+VAR _LeverageScore = IF(_Leverage < 0.3, 10, IF(_Leverage < 0.6, 5, 0))
+
+RETURN _ROEScore + _MarginScore + _GrowthScore + _LiquidityScore + _LeverageScore
+
+// =============================================================================
+// NOTAS DE FORMATAÇÃO PARA POWER BI
+// =============================================================================
+
+/*
+CONFIGURAÇÕES DE FORMATO RECOMENDADAS:
+
+Valores Monetários (Receita, Lucro, etc.):
+- Formato: #,##0.0,, "M"  (Milhões com 1 casa decimal)
+- Exemplo: 15.2M
+
+Percentuais (Margens, ROE, Crescimento):
+- Formato: 0.0%
+- Exemplo: 15.2%
+
+Ratios (Liquidez, D/E, Asset Turnover):
+- Formato: 0.00
+- Exemplo: 1.25
+
+Dias (DSO, DIO, DPO):
+- Formato: 0 "dias"
+- Exemplo: 45 dias
+
+Cores Condicionais:
+- Verde: Valores positivos/bons (ROE > 15%, Crescimento > 0%)
+- Amarelo: Valores neutros/médios
+- Vermelho: Valores negativos/ruins (Liquidez < 1.0, ROE < 0%)
+
+Tooltips Recomendados:
+- Incluir definições dos ratios
+- Mostrar comparação com mediana do setor
+- Indicar data de referência dos dados
+*/

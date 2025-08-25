@@ -1,0 +1,250 @@
+# schema.yml - Testes e documentação dos modelos dbt
+
+version: 2
+
+sources:
+  - name: raw
+    description: "Dados brutos das fontes externas"
+    tables:
+      - name: sec_company_facts
+        description: "Company facts XBRL da SEC"
+        columns:
+          - name: cik
+            description: "Central Index Key da SEC"
+            tests:
+              - not_null
+          - name: raw_data
+            description: "Dados JSON brutos da API SEC"
+            tests:
+              - not_null
+      
+      - name: sec_submissions
+        description: "Submissions metadata da SEC"
+        columns:
+          - name: cik
+            description: "Central Index Key da SEC"
+            tests:
+              - not_null
+              - unique
+      
+      - name: fx_rates_raw
+        description: "Taxas FX brutas ECB/FRED"
+        columns:
+          - name: source
+            description: "Fonte dos dados: ECB ou FRED"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['ECB', 'FRED']
+
+models:
+  # STAGING MODELS
+  - name: stg_companies
+    description: "Empresas normalizadas com metadata enriquecido"
+    columns:
+      - name: company_id
+        description: "ID único da empresa (surrogate key)"
+        tests:
+          - not_null
+          - unique
+      - name: cik
+        description: "Central Index Key da SEC"
+        tests:
+          - not_null
+          - unique
+      - name: ticker
+        description: "Símbolo de negociação da empresa"
+      - name: company_name
+        description: "Nome oficial da empresa"
+        tests:
+          - not_null
+      - name: sector
+        description: "Setor econômico da empresa"
+      - name: currency
+        description: "Moeda de reporte padrão"
+        tests:
+          - accepted_values:
+              values: ['USD', 'EUR', 'GBP', 'JPY', 'CAD']
+
+  - name: stg_financial_facts
+    description: "Fatos financeiros normalizados com mapeamento canônico"
+    columns:
+      - name: fact_id
+        description: "ID único do fato financeiro"
+        tests:
+          - not_null
+          - unique
+      - name: cik
+        description: "Central Index Key da empresa"
+        tests:
+          - not_null
+      - name: canonical_metric
+        description: "Métrica padronizada (revenue, net_income, etc.)"
+      - name: value
+        description: "Valor da métrica"
+        tests:
+          - not_null
+      - name: period_end
+        description: "Data de fim do período reportado"
+        tests:
+          - not_null
+      - name: fiscal_year
+        description: "Ano fiscal"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 2015
+              max_value: 2030
+
+  - name: stg_fx_rates
+    description: "Taxas de câmbio normalizadas"
+    columns:
+      - name: fx_id
+        description: "ID único da taxa FX"
+        tests:
+          - not_null
+          - unique
+      - name: rate_date
+        description: "Data da taxa de câmbio"
+        tests:
+          - not_null
+      - name: currency_from
+        description: "Moeda de origem"
+        tests:
+          - not_null
+      - name: currency_to
+        description: "Moeda de destino"
+        tests:
+          - not_null
+      - name: rate
+        description: "Taxa de conversão"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.001
+              max_value: 1000
+
+  # INTERMEDIATE MODELS
+  - name: int_financial_facts_with_fx
+    description: "Fatos financeiros com conversão FX aplicada"
+    columns:
+      - name: company_id
+        description: "ID da empresa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_companies')
+              field: company_id
+      - name: value_usd
+        description: "Valor convertido para USD"
+      - name: is_valid
+        description: "Flag de qualidade do dado"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+
+  # MARTS MODELS
+  - name: fact_financials_quarterly
+    description: "Fatos financeiros agregados por trimestre"
+    columns:
+      - name: financial_id
+        description: "ID único do registro financeiro"
+        tests:
+          - not_null
+          - unique
+      - name: company_id
+        description: "ID da empresa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_companies')  
+              field: company_id
+      - name: period_end_date
+        description: "Data de fim do período"
+        tests:
+          - not_null
+      - name: ticker
+        description: "Ticker da empresa"
+        tests:
+          - not_null
+      - name: revenue
+        description: "Receita do período"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1e12
+              inclusive: false
+      - name: net_income
+        description: "Lucro líquido do período"
+
+  - name: fact_financials_ttm
+    description: "Métricas TTM e ratios financeiros"
+    columns:
+      - name: ttm_id
+        description: "ID único do registro TTM"
+        tests:
+          - not_null
+          - unique
+      - name: company_id
+        description: "ID da empresa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_companies')
+              field: company_id
+      - name: as_of_date
+        description: "Data de referência para o cálculo TTM"
+        tests:
+          - not_null
+      - name: revenue_ttm
+        description: "Receita dos últimos 12 meses"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1e12
+              inclusive: false
+      - name: roe
+        description: "Return on Equity"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -10
+              max_value: 10
+      - name: debt_to_equity
+        description: "Alavancagem Debt/Equity"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50
+
+seeds:
+  - name: currency_rates_sample
+    description: "Dados de exemplo para taxas de câmbio"
+    columns:
+      - name: rate_date
+        tests:
+          - not_null
+      - name: rate
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000
+
+  - name: taxonomy_map
+    description: "Mapeamento de conceitos US-GAAP/IFRS para métricas canônicas"
+    columns:
+      - name: original_concept
+        description: "Conceito original da taxonomia"
+        tests:
+          - not_null
+      - name: canonical_metric
+        description: "Métrica padronizada correspondente"
+        tests:
+          - not_null
+      - name: is_active
+        description: "Se o mapeamento está ativo"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]

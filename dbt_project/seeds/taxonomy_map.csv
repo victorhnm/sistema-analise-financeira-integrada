@@ -1,0 +1,36 @@
+original_concept,original_taxonomy,canonical_metric,statement_type,metric_category,display_order,is_active
+Revenues,US-GAAP,revenue,IS,Revenue,1,true
+RevenueFromContractWithCustomerExcludingAssessedTax,US-GAAP,revenue,IS,Revenue,1,true
+SalesRevenueNet,US-GAAP,revenue,IS,Revenue,1,true
+GrossProfit,US-GAAP,gross_profit,IS,Profitability,2,true
+OperatingIncomeLoss,US-GAAP,operating_income,IS,Profitability,3,true
+IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest,US-GAAP,pretax_income,IS,Profitability,4,true
+NetIncomeLoss,US-GAAP,net_income,IS,Profitability,5,true
+NetIncomeLossAvailableToCommonStockholdersBasic,US-GAAP,net_income,IS,Profitability,5,true
+Assets,US-GAAP,total_assets,BS,Assets,1,true
+AssetsCurrent,US-GAAP,current_assets,BS,Assets,2,true
+CashAndCashEquivalentsAtCarryingValue,US-GAAP,cash_and_equivalents,BS,Assets,3,true
+CashCashEquivalentsAndShortTermInvestments,US-GAAP,cash_and_equivalents,BS,Assets,3,true
+AccountsReceivableNetCurrent,US-GAAP,accounts_receivable,BS,Assets,4,true
+InventoryNet,US-GAAP,inventory,BS,Assets,5,true
+PropertyPlantAndEquipmentNet,US-GAAP,ppe_net,BS,Assets,6,true
+Goodwill,US-GAAP,goodwill,BS,Assets,7,true
+Liabilities,US-GAAP,total_liabilities,BS,Liabilities,1,true
+LiabilitiesCurrent,US-GAAP,current_liabilities,BS,Liabilities,2,true
+AccountsPayableCurrent,US-GAAP,accounts_payable,BS,Liabilities,3,true
+LongTermDebt,US-GAAP,long_term_debt,BS,Liabilities,4,true
+StockholdersEquity,US-GAAP,shareholders_equity,BS,Equity,1,true
+RetainedEarningsAccumulatedDeficit,US-GAAP,retained_earnings,BS,Equity,2,true
+NetCashProvidedByUsedInOperatingActivities,US-GAAP,operating_cash_flow,CF,Operating,1,true
+NetCashProvidedByUsedInInvestingActivities,US-GAAP,investing_cash_flow,CF,Investing,2,true
+NetCashProvidedByUsedInFinancingActivities,US-GAAP,financing_cash_flow,CF,Financing,3,true
+PaymentsToAcquirePropertyPlantAndEquipment,US-GAAP,capex,CF,Investing,4,true
+EarningsPerShareBasic,US-GAAP,eps_basic,IS,Per Share,6,true
+EarningsPerShareDiluted,US-GAAP,eps_diluted,IS,Per Share,7,true
+WeightedAverageNumberOfSharesOutstandingBasic,US-GAAP,shares_basic,IS,Per Share,8,true
+WeightedAverageNumberOfDilutedSharesOutstanding,US-GAAP,shares_diluted,IS,Per Share,9,true
+Revenue,IFRS,revenue,IS,Revenue,1,true
+ProfitLoss,IFRS,net_income,IS,Profitability,5,true
+TotalAssets,IFRS,total_assets,BS,Assets,1,true
+TotalEquity,IFRS,shareholders_equity,BS,Equity,1,true
+CashFlowsFromUsedInOperatingActivities,IFRS,operating_cash_flow,CF,Operating,1,true

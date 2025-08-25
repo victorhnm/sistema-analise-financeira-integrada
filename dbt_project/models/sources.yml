@@ -1,0 +1,36 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Dados brutos das APIs"
+    schema: raw
+    tables:
+      - name: sec_company_facts
+        description: "Company facts da SEC em formato JSON"
+        columns:
+          - name: cik
+            description: "Central Index Key da empresa"
+          - name: company_name
+            description: "Nome da empresa"
+          - name: ticker
+            description: "Ticker da empresa"
+          - name: raw_data
+            description: "Dados JSON completos da SEC"
+          - name: ingested_at
+            description: "Timestamp de ingestão"
+
+  - name: core
+    description: "Modelo dimensional core"
+    schema: core
+    tables:
+      - name: dim_company
+        description: "Dimensão de empresas"
+        columns:
+          - name: company_id
+            description: "ID único da empresa"
+          - name: cik
+            description: "Central Index Key"
+          - name: ticker
+            description: "Símbolo da empresa"
+          - name: company_name
+            description: "Nome da empresa"

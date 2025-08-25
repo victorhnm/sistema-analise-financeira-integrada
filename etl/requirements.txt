@@ -1,0 +1,54 @@
+# ETL Requirements - Integrated Financial Analysis
+# Python dependencies for data ingestion and processing
+
+# Core data processing
+pandas==2.0.3
+numpy==1.24.3
+
+# Database connectivity
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.7
+asyncpg==0.29.0
+
+# HTTP clients and async
+aiohttp==3.9.1
+httpx==0.25.2
+requests==2.31.0
+
+# Retry and backoff logic
+backoff==2.2.1
+tenacity==8.2.3
+
+# Data validation
+pydantic==2.5.2
+jsonschema==4.20.0
+
+# XML/JSON processing
+lxml==4.9.3
+xmltodict==0.13.0
+orjson==3.9.10
+
+# Date/time handling
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Configuration and environment
+python-dotenv==1.0.0
+click==8.1.7
+
+# Testing (optional but recommended)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Logging and monitoring
+structlog==23.2.0
+
+# Development tools
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Version constraints for security
+urllib3>=2.0.7
+certifi>=2023.7.22

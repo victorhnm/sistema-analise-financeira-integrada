@@ -1,0 +1,353 @@
+# .github/workflows/dbt_run_test.yml
+# Workflow para transformações dbt
+# Executa: deps → seed → run → test → docs
+
+name: dbt Run & Test
+
+on:
+  # Executar após ETL daily
+  workflow_run:
+    workflows: ["ETL Daily Pipeline"]
+    types:
+      - completed
+  
+  # Execução manual
+  workflow_dispatch:
+    inputs:
+      dbt_command:
+        description: 'Comando dbt específico'
+        required: false
+        default: 'run test'
+        type: choice
+        options:
+          - 'run test'
+          - 'run'
+          - 'test'
+          - 'seed'
+          - 'docs generate'
+          - 'freshness'
+      full_refresh:
+        description: 'dbt --full-refresh (recriar tabelas incrementais)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  
+  # Executar em PRs que afetam modelos dbt
+  pull_request:
+    paths:
+      - 'dbt_project/**'
+      - '.github/workflows/dbt_run_test.yml'
+  
+  # Push na main (para CI contínuo)
+  push:
+    branches:
+      - main
+    paths:
+      - 'dbt_project/**'
+
+env:
+  DBT_VERSION: '1.7.0'
+  PYTHON_VERSION: '3.11'
+  DBT_PROFILES_DIR: ~/.dbt
+
+jobs:
+  # ==========================================================================
+  # SETUP E VALIDAÇÃO
+  # ==========================================================================
+  setup:
+    name: Setup dbt Environment
+    runs-on: ubuntu-latest
+    
+    outputs:
+      dbt_command: ${{ steps.determine_command.outputs.command }}
+      should_run: ${{ steps.check_trigger.outputs.should_run }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Check Trigger Conditions
+        id: check_trigger
+        run: |
+          SHOULD_RUN="true"
+          
+          # Se workflow_run, verificar se ETL foi bem-sucedido
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            if [[ "${{ github.event.workflow_run.conclusion }}" != "success" ]]; then
+              echo "ETL pipeline failed, skipping dbt run"
+              SHOULD_RUN="false"
+            fi
+          fi
+          
+          echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+      
+      - name: Determine dbt Command
+        id: determine_command
+        run: |
+          if [[ "${{ github.event.inputs.dbt_command }}" != "" ]]; then
+            COMMAND="${{ github.event.inputs.dbt_command }}"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            COMMAND="run test"  # PR: sempre run + test
+          else
+            COMMAND="run test"  # Default
+          fi
+          
+          echo "command=$COMMAND" >> $GITHUB_OUTPUT
+          echo "Selected dbt command: $COMMAND"
+
+  # ==========================================================================
+  # DBT EXECUTION
+  # ==========================================================================
+  dbt-run:
+    name: Execute dbt
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.should_run == 'true'
+    
+    outputs:
+      models_run: ${{ steps.dbt_run.outputs.models_run }}
+      tests_passed: ${{ steps.dbt_test.outputs.tests_passed }}
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dbt
+        run: |
+          pip install --upgrade pip
+          pip install dbt-postgres==${{ env.DBT_VERSION }}
+          pip install dbt-core==${{ env.DBT_VERSION }}
+          dbt --version
+      
+      - name: Setup dbt Profile
+        env:
+          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
+          SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
+          SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
+          SUPABASE_DBNAME: ${{ secrets.SUPABASE_DBNAME }}
+          SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
+        run: |
+          mkdir -p ~/.dbt
+          
+          cat << EOF > ~/.dbt/profiles.yml
+          integrated_financial_analysis:
+            target: ci
+            outputs:
+              ci:
+                type: postgres
+                host: $SUPABASE_HOST
+                user: $SUPABASE_USER
+                password: $SUPABASE_PASSWORD
+                port: ${SUPABASE_PORT:-5432}
+                dbname: ${SUPABASE_DBNAME:-postgres}
+                schema: core
+                threads: 4
+                keepalives_idle: 0
+                search_path: "core,staging,raw,marts,public"
+                sslmode: require
+          EOF
+          
+          echo "dbt profile configured"
+      
+      - name: Test dbt Connection
+        run: |
+          cd dbt_project
+          dbt debug --profiles-dir ~/.dbt
+      
+      - name: Install dbt Dependencies
+        run: |
+          cd dbt_project
+          dbt deps --profiles-dir ~/.dbt
+      
+      - name: dbt Seed (if needed)
+        if: contains(needs.setup.outputs.dbt_command, 'seed') || github.event.inputs.full_refresh == 'true'
+        run: |
+          cd dbt_project
+          echo "Running dbt seed..."
+          dbt seed --profiles-dir ~/.dbt --show
+      
+      - name: dbt Run
+        id: dbt_run
+        if: contains(needs.setup.outputs.dbt_command, 'run')
+        run: |
+          cd dbt_project
+          
+          # Determinar argumentos
+          ARGS="--profiles-dir ~/.dbt"
+          if [[ "${{ github.event.inputs.full_refresh }}" == "true" ]]; then
+            ARGS="$ARGS --full-refresh"
+          fi
+          
+          echo "Running dbt run with args: $ARGS"
+          
+          # Executar e capturar resultado
+          if dbt run $ARGS 2>&1 | tee dbt_run.log; then
+            # Extrair estatísticas do log
+            MODELS_RUN=$(grep -c "COMPLETED" dbt_run.log || echo "0")
+            echo "models_run=$MODELS_RUN" >> $GITHUB_OUTPUT
+            echo "✅ dbt run completed: $MODELS_RUN models"
+          else
+            echo "❌ dbt run failed"
+            exit 1
+          fi
+      
+      - name: dbt Test
+        id: dbt_test
+        if: contains(needs.setup.outputs.dbt_command, 'test')
+        run: |
+          cd dbt_project
+          
+          echo "Running dbt test..."
+          
+          if dbt test --profiles-dir ~/.dbt 2>&1 | tee dbt_test.log; then
+            # Extrair estatísticas
+            TESTS_PASSED=$(grep -c "PASS" dbt_test.log || echo "0")
+            echo "tests_passed=$TESTS_PASSED" >> $GITHUB_OUTPUT
+            echo "✅ dbt test completed: $TESTS_PASSED tests passed"
+          else
+            echo "❌ dbt test failed"
+            
+            # Mostrar testes que falharam
+            echo "Failed tests:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep "FAIL\|ERROR" dbt_test.log >> $GITHUB_STEP_SUMMARY || echo "No specific failures found" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            
+            exit 1
+          fi
+      
+      - name: dbt Docs Generate
+        if: contains(needs.setup.outputs.dbt_command, 'docs') || github.event_name == 'push'
+        run: |
+          cd dbt_project
+          echo "Generating dbt documentation..."
+          dbt docs generate --profiles-dir ~/.dbt
+      
+      - name: Upload dbt Artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: dbt-artifacts
+          path: |
+            dbt_project/target/
+            dbt_project/logs/
+            dbt_project/*.log
+          retention-days: 30
+      
+      - name: Upload dbt Docs
+        if: contains(needs.setup.outputs.dbt_command, 'docs') || github.event_name == 'push'
+        uses: actions/upload-artifact@v3
+        with:
+          name: dbt-docs
+          path: |
+            dbt_project/target/index.html
+            dbt_project/target/manifest.json
+            dbt_project/target/catalog.json
+          retention-days: 7
+      
+      - name: Generate Summary
+        if: always()
+        run: |
+          cd dbt_project
+          
+          echo "# dbt Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Command:** ${{ needs.setup.outputs.dbt_command }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Full Refresh:** ${{ github.event.inputs.full_refresh }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Estatísticas por step
+          if [[ "${{ steps.dbt_run.outcome }}" == "success" ]]; then
+            echo "- ✅ **dbt run:** ${{ steps.dbt_run.outputs.models_run || 0 }} models executed" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ steps.dbt_run.outcome }}" == "failure" ]]; then
+            echo "- ❌ **dbt run:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ steps.dbt_test.outcome }}" == "success" ]]; then
+            echo "- ✅ **dbt test:** ${{ steps.dbt_test.outputs.tests_passed || 0 }} tests passed" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ steps.dbt_test.outcome }}" == "failure" ]]; then
+            echo "- ❌ **dbt test:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Logs de erro se houver
+          if [[ -f "dbt_run.log" ]] && grep -q "ERROR\|FAIL" dbt_run.log; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## Errors Found" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -A 2 -B 2 "ERROR\|FAIL" dbt_run.log | head -20 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ==========================================================================
+  # DATA FRESHNESS CHECK (opcional)
+  # ==========================================================================
+  freshness-check:
+    name: Check Data Freshness
+    runs-on: ubuntu-latest
+    needs: [setup, dbt-run]
+    if: needs.setup.outputs.should_run == 'true' && (contains(needs.setup.outputs.dbt_command, 'freshness') || github.event_name == 'workflow_run')
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dbt
+        run: |
+          pip install --upgrade pip
+          pip install dbt-postgres==${{ env.DBT_VERSION }}
+      
+      - name: Setup dbt Profile
+        env:
+          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
+          SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
+          SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
+          SUPABASE_DBNAME: ${{ secrets.SUPABASE_DBNAME }}
+          SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
+        run: |
+          mkdir -p ~/.dbt
+          
+          cat << EOF > ~/.dbt/profiles.yml
+          integrated_financial_analysis:
+            target: ci
+            outputs:
+              ci:
+                type: postgres
+                host: $SUPABASE_HOST
+                user: $SUPABASE_USER
+                password: $SUPABASE_PASSWORD
+                port: ${SUPABASE_PORT:-5432}
+                dbname: ${SUPABASE_DBNAME:-postgres}
+                schema: core
+                threads: 2
+                keepalives_idle: 0
+                search_path: "core,staging,raw,marts,public"
+                sslmode: require
+          EOF
+      
+      - name: Check Source Freshness
+        run: |
+          cd dbt_project
+          echo "Checking data source freshness..."
+          
+          # Note: Freshness check requer configuração de sources no schema.yml
+          # Por enquanto, fazer check manual de data freshness
+          dbt run-operation query --args "'{\"sql\": \"SELECT 'staging.companies' as table_name, MAX(load_ts) as last_update FROM staging.companies UNION ALL SELECT 'staging.fx_rates' as table_name, MAX(load_ts) as last_update FROM staging.fx_rates\"}'" --profiles-dir ~/.dbt > freshness.txt
+          
+          echo "## Data Freshness Check" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat freshness.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

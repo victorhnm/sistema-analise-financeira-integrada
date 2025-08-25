@@ -1,0 +1,516 @@
+{
+  "version": "4.0",
+  "settings": {
+    "compatibilityLevel": 1604
+  },
+  "model": {
+    "name": "Integrated Financial Analysis",
+    "description": "Comprehensive financial analysis model with TTM metrics, ratios, and peer comparison capabilities",
+    "defaultPowerBIDataSourceVersion": "powerBI_V3",
+    "dataSources": [
+      {
+        "name": "PostgreSQL - Supabase",
+        "connectionDetails": {
+          "protocol": "postgresql",
+          "address": {
+            "server": "aws-0-sa-east-1.pooler.supabase.com",
+            "database": "postgres"
+          },
+          "authentication": {
+            "type": "UsernamePassword",
+            "username": "postgres.{project_ref}"
+          }
+        },
+        "options": {
+          "includeRelationshipColumns": true,
+          "importRelationships": true
+        },
+        "credential": {
+          "AuthenticationKind": "UsernamePassword",
+          "kind": "PostgreSQL",
+          "path": "aws-0-sa-east-1.pooler.supabase.com;postgres",
+          "EncryptConnection": true,
+          "PrivacyLevel": "Organizational"
+        }
+      }
+    ],
+    "tables": [
+      {
+        "name": "fact_financials_quarterly",
+        "source": [
+          {
+            "expression": [
+              "let",
+              "    Source = PostgreSQL.Database(\"aws-0-sa-east-1.pooler.supabase.com\", \"postgres\"),",
+              "    marts = Source{[Schema=\"marts\"]}[Data],",
+              "    fact_financials_quarterly = marts{[Name=\"fact_financials_quarterly\"]}[Data]",
+              "in",
+              "    fact_financials_quarterly"
+            ]
+          }
+        ],
+        "columns": [
+          {
+            "name": "financial_id",
+            "dataType": "int64",
+            "sourceColumn": "financial_id"
+          },
+          {
+            "name": "company_id", 
+            "dataType": "int64",
+            "sourceColumn": "company_id"
+          },
+          {
+            "name": "period_end_date",
+            "dataType": "dateTime",
+            "sourceColumn": "period_end_date"
+          },
+          {
+            "name": "fiscal_year",
+            "dataType": "int64", 
+            "sourceColumn": "fiscal_year"
+          },
+          {
+            "name": "fiscal_quarter",
+            "dataType": "int64",
+            "sourceColumn": "fiscal_quarter"
+          },
+          {
+            "name": "currency",
+            "dataType": "string",
+            "sourceColumn": "currency"
+          },
+          {
+            "name": "revenue",
+            "dataType": "decimal",
+            "sourceColumn": "revenue",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "gross_profit",
+            "dataType": "decimal", 
+            "sourceColumn": "gross_profit",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "operating_income",
+            "dataType": "decimal",
+            "sourceColumn": "operating_income", 
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "net_income",
+            "dataType": "decimal",
+            "sourceColumn": "net_income",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "ebitda",
+            "dataType": "decimal",
+            "sourceColumn": "ebitda",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "total_assets",
+            "dataType": "decimal",
+            "sourceColumn": "total_assets",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "total_liabilities", 
+            "dataType": "decimal",
+            "sourceColumn": "total_liabilities",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "shareholders_equity",
+            "dataType": "decimal",
+            "sourceColumn": "shareholders_equity", 
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "cash_and_equivalents",
+            "dataType": "decimal",
+            "sourceColumn": "cash_and_equivalents",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "total_debt",
+            "dataType": "decimal",
+            "sourceColumn": "total_debt",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "operating_cash_flow",
+            "dataType": "decimal", 
+            "sourceColumn": "operating_cash_flow",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "investing_cash_flow",
+            "dataType": "decimal",
+            "sourceColumn": "investing_cash_flow",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "financing_cash_flow",
+            "dataType": "decimal",
+            "sourceColumn": "financing_cash_flow", 
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "free_cash_flow",
+            "dataType": "decimal",
+            "sourceColumn": "free_cash_flow",
+            "formatString": "#,0.00,,\"M\""
+          }
+        ]
+      },
+      {
+        "name": "fact_financials_ttm",
+        "source": [
+          {
+            "expression": [
+              "let",
+              "    Source = PostgreSQL.Database(\"aws-0-sa-east-1.pooler.supabase.com\", \"postgres\"),",
+              "    marts = Source{[Schema=\"marts\"]}[Data],",
+              "    fact_financials_ttm = marts{[Name=\"fact_financials_ttm\"]}[Data]",
+              "in",
+              "    fact_financials_ttm"
+            ]
+          }
+        ],
+        "columns": [
+          {
+            "name": "ttm_id",
+            "dataType": "int64",
+            "sourceColumn": "ttm_id"
+          },
+          {
+            "name": "company_id",
+            "dataType": "int64", 
+            "sourceColumn": "company_id"
+          },
+          {
+            "name": "as_of_date",
+            "dataType": "dateTime",
+            "sourceColumn": "as_of_date"
+          },
+          {
+            "name": "revenue_ttm",
+            "dataType": "decimal",
+            "sourceColumn": "revenue_ttm",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "net_income_ttm", 
+            "dataType": "decimal",
+            "sourceColumn": "net_income_ttm",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "operating_income_ttm",
+            "dataType": "decimal",
+            "sourceColumn": "operating_income_ttm",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "ebitda_ttm",
+            "dataType": "decimal",
+            "sourceColumn": "ebitda_ttm", 
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "free_cash_flow_ttm",
+            "dataType": "decimal",
+            "sourceColumn": "free_cash_flow_ttm",
+            "formatString": "#,0.00,,\"M\""
+          },
+          {
+            "name": "gross_margin",
+            "dataType": "decimal",
+            "sourceColumn": "gross_margin",
+            "formatString": "0.00%"
+          },
+          {
+            "name": "operating_margin",
+            "dataType": "decimal",
+            "sourceColumn": "operating_margin",
+            "formatString": "0.00%"
+          },
+          {
+            "name": "net_margin", 
+            "dataType": "decimal",
+            "sourceColumn": "net_margin",
+            "formatString": "0.00%"
+          },
+          {
+            "name": "roe",
+            "dataType": "decimal",
+            "sourceColumn": "roe",
+            "formatString": "0.00%"
+          },
+          {
+            "name": "roa",
+            "dataType": "decimal",
+            "sourceColumn": "roa", 
+            "formatString": "0.00%"
+          },
+          {
+            "name": "debt_to_equity",
+            "dataType": "decimal",
+            "sourceColumn": "debt_to_equity",
+            "formatString": "0.00"
+          },
+          {
+            "name": "current_ratio",
+            "dataType": "decimal",
+            "sourceColumn": "current_ratio",
+            "formatString": "0.00"
+          },
+          {
+            "name": "revenue_growth_yoy",
+            "dataType": "decimal",
+            "sourceColumn": "revenue_growth_yoy",
+            "formatString": "0.00%"
+          },
+          {
+            "name": "net_income_growth_yoy",
+            "dataType": "decimal",
+            "sourceColumn": "net_income_growth_yoy", 
+            "formatString": "0.00%"
+          }
+        ]
+      },
+      {
+        "name": "dim_company",
+        "source": [
+          {
+            "expression": [
+              "let", 
+              "    Source = PostgreSQL.Database(\"aws-0-sa-east-1.pooler.supabase.com\", \"postgres\"),",
+              "    core = Source{[Schema=\"core\"]}[Data],",
+              "    dim_company = core{[Name=\"dim_company\"]}[Data]",
+              "in",
+              "    dim_company"
+            ]
+          }
+        ],
+        "columns": [
+          {
+            "name": "company_id",
+            "dataType": "int64",
+            "sourceColumn": "company_id"
+          },
+          {
+            "name": "cik",
+            "dataType": "string",
+            "sourceColumn": "cik"
+          },
+          {
+            "name": "ticker",
+            "dataType": "string",
+            "sourceColumn": "ticker"
+          },
+          {
+            "name": "company_name",
+            "dataType": "string",
+            "sourceColumn": "company_name"
+          },
+          {
+            "name": "sector", 
+            "dataType": "string",
+            "sourceColumn": "sector"
+          },
+          {
+            "name": "country",
+            "dataType": "string",
+            "sourceColumn": "country"
+          },
+          {
+            "name": "currency",
+            "dataType": "string", 
+            "sourceColumn": "currency"
+          },
+          {
+            "name": "is_active",
+            "dataType": "boolean",
+            "sourceColumn": "is_active"
+          }
+        ]
+      },
+      {
+        "name": "dim_date",
+        "source": [
+          {
+            "expression": [
+              "let",
+              "    Source = PostgreSQL.Database(\"aws-0-sa-east-1.pooler.supabase.com\", \"postgres\"),",
+              "    core = Source{[Schema=\"core\"]}[Data],",
+              "    dim_date = core{[Name=\"dim_date\"]}[Data]", 
+              "in",
+              "    dim_date"
+            ]
+          }
+        ],
+        "columns": [
+          {
+            "name": "date_key",
+            "dataType": "dateTime",
+            "sourceColumn": "date_key"
+          },
+          {
+            "name": "year",
+            "dataType": "int64",
+            "sourceColumn": "year"
+          },
+          {
+            "name": "quarter", 
+            "dataType": "int64",
+            "sourceColumn": "quarter"
+          },
+          {
+            "name": "month",
+            "dataType": "int64",
+            "sourceColumn": "month"
+          },
+          {
+            "name": "fiscal_year",
+            "dataType": "int64",
+            "sourceColumn": "fiscal_year"
+          },
+          {
+            "name": "fiscal_quarter",
+            "dataType": "int64",
+            "sourceColumn": "fiscal_quarter"
+          },
+          {
+            "name": "is_quarter_end",
+            "dataType": "boolean", 
+            "sourceColumn": "is_quarter_end"
+          },
+          {
+            "name": "is_year_end",
+            "dataType": "boolean",
+            "sourceColumn": "is_year_end"
+          }
+        ]
+      },
+      {
+        "name": "dim_currency",
+        "source": [
+          {
+            "expression": [
+              "let",
+              "    Source = PostgreSQL.Database(\"aws-0-sa-east-1.pooler.supabase.com\", \"postgres\"),",
+              "    core = Source{[Schema=\"core\"]}[Data],",
+              "    dim_currency = core{[Name=\"dim_currency\"]}[Data]",
+              "in", 
+              "    dim_currency"
+            ]
+          }
+        ],
+        "columns": [
+          {
+            "name": "currency_code",
+            "dataType": "string",
+            "sourceColumn": "currency_code"
+          },
+          {
+            "name": "currency_name",
+            "dataType": "string",
+            "sourceColumn": "currency_name"
+          },
+          {
+            "name": "currency_symbol", 
+            "dataType": "string",
+            "sourceColumn": "currency_symbol"
+          },
+          {
+            "name": "is_active",
+            "dataType": "boolean",
+            "sourceColumn": "is_active"
+          }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "fact_quarterly_to_dim_company",
+        "fromTable": "fact_financials_quarterly",
+        "fromColumn": "company_id",
+        "toTable": "dim_company",
+        "toColumn": "company_id",
+        "crossFilteringBehavior": "bothDirections"
+      },
+      {
+        "name": "fact_quarterly_to_dim_date", 
+        "fromTable": "fact_financials_quarterly",
+        "fromColumn": "period_end_date",
+        "toTable": "dim_date",
+        "toColumn": "date_key",
+        "crossFilteringBehavior": "bothDirections"
+      },
+      {
+        "name": "fact_ttm_to_dim_company",
+        "fromTable": "fact_financials_ttm", 
+        "fromColumn": "company_id",
+        "toTable": "dim_company",
+        "toColumn": "company_id",
+        "crossFilteringBehavior": "bothDirections"
+      },
+      {
+        "name": "fact_ttm_to_dim_date",
+        "fromTable": "fact_financials_ttm",
+        "fromColumn": "as_of_date",
+        "toTable": "dim_date",
+        "toColumn": "date_key", 
+        "crossFilteringBehavior": "bothDirections"
+      }
+    ],
+    "measures": [
+      {
+        "name": "Receita TTM",
+        "expression": "CALCULATE(SUM('fact_financials_ttm'[revenue_ttm]) / 1000000, KEEPFILTERS('dim_date'[date_key] = MAX('dim_date'[date_key])))",
+        "formatString": "#,0.0,,\"M\"",
+        "description": "Receita dos últimos 12 meses em milhões USD"
+      },
+      {
+        "name": "Lucro Líquido TTM",
+        "expression": "CALCULATE(SUM('fact_financials_ttm'[net_income_ttm]) / 1000000, KEEPFILTERS('dim_date'[date_key] = MAX('dim_date'[date_key])))",
+        "formatString": "#,0.0,,\"M\"",
+        "description": "Lucro líquido dos últimos 12 meses em milhões USD"
+      },
+      {
+        "name": "EBITDA TTM", 
+        "expression": "CALCULATE(SUM('fact_financials_ttm'[ebitda_ttm]) / 1000000, KEEPFILTERS('dim_date'[date_key] = MAX('dim_date'[date_key])))",
+        "formatString": "#,0.0,,\"M\"",
+        "description": "EBITDA dos últimos 12 meses em milhões USD"
+      },
+      {
+        "name": "Margem Líquida",
+        "expression": "VAR _NetMargin = AVERAGE('fact_financials_ttm'[net_margin]) RETURN IF(NOT ISBLANK(_NetMargin), _NetMargin * 100, BLANK())",
+        "formatString": "0.0%",
+        "description": "Margem líquida percentual"
+      },
+      {
+        "name": "ROE",
+        "expression": "VAR _ROE = AVERAGE('fact_financials_ttm'[roe]) RETURN IF(NOT ISBLANK(_ROE), _ROE * 100, BLANK())",
+        "formatString": "0.0%",
+        "description": "Return on Equity - Retorno sobre patrimônio líquido"
+      },
+      {
+        "name": "Crescimento Receita YoY",
+        "expression": "VAR _RevenueGrowth = AVERAGE('fact_financials_ttm'[revenue_growth_yoy]) RETURN IF(NOT ISBLANK(_RevenueGrowth), _RevenueGrowth * 100, BLANK())",
+        "formatString": "0.0%", 
+        "description": "Crescimento year-over-year da receita"
+      },
+      {
+        "name": "Total Empresas",
+        "expression": "DISTINCTCOUNT('fact_financials_ttm'[company_id])",
+        "formatString": "#,0",
+        "description": "Número total de empresas no dataset"
+      }
+    ]
+  }
+}

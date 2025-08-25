@@ -1,0 +1,421 @@
+# .github/workflows/quality_gate.yml
+# Quality gate com pytest, linting e validações de schema
+# Badge de status para README
+
+name: Quality Gate
+
+on:
+  # Execução em PRs
+  pull_request:
+    branches:
+      - main
+      - develop
+  
+  # Push na main
+  push:
+    branches:
+      - main
+  
+  # Execução manual
+  workflow_dispatch:
+  
+  # Execução agendada (verificação noturna)
+  schedule:
+    - cron: '0 3 * * *'  # 03:00 UTC diariamente
+
+env:
+  PYTHON_VERSION: '3.11'
+  CACHE_DEPENDENCY_PATH: '**/requirements*.txt'
+
+jobs:
+  # ==========================================================================
+  # ANÁLISE ESTÁTICA E LINTING
+  # ==========================================================================
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: ${{ env.CACHE_DEPENDENCY_PATH }}
+      
+      - name: Install Dependencies
+        run: |
+          cd etl
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Code Formatting Check (Black)
+        run: |
+          cd etl
+          echo "Checking code formatting with Black..."
+          black --check --diff . || {
+            echo "❌ Code formatting issues found!"
+            echo "Run 'black .' to fix formatting issues."
+            exit 1
+          }
+          echo "✅ Code formatting is correct"
+      
+      - name: Import Sorting Check (isort)
+        run: |
+          cd etl
+          pip install isort
+          echo "Checking import sorting..."
+          isort --check-only --diff . || {
+            echo "❌ Import sorting issues found!"
+            echo "Run 'isort .' to fix import order."
+            exit 1
+          }
+          echo "✅ Import sorting is correct"
+      
+      - name: Linting (Flake8)
+        run: |
+          cd etl
+          echo "Running Flake8 linting..."
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      
+      - name: Type Checking (MyPy)
+        continue-on-error: true  # MyPy pode ter false positives
+        run: |
+          cd etl
+          echo "Running MyPy type checking..."
+          mypy --ignore-missing-imports --show-error-codes . || {
+            echo "⚠️ Type checking issues found (non-blocking)"
+          }
+
+  # ==========================================================================
+  # TESTES UNITÁRIOS
+  # ==========================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Dependencies
+        run: |
+          cd etl
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+      
+      - name: Create Test Configuration
+        run: |
+          cd etl
+          cat << EOF > pytest.ini
+          [tool:pytest]
+          testpaths = tests
+          python_files = test_*.py
+          python_functions = test_*
+          python_classes = Test*
+          asyncio_mode = auto
+          addopts = 
+              --verbose
+              --tb=short
+              --strict-markers
+              --strict-config
+          markers =
+              unit: Unit tests (fast)
+              integration: Integration tests (slow)
+              slow: Slow tests
+          EOF
+      
+      - name: Run Unit Tests
+        env:
+          # Mock environment variables for tests
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          SEC_USER_AGENT: TestCompany test@example.com
+          SOURCE_FX: ECB
+          LOG_LEVEL: DEBUG
+        run: |
+          cd etl
+          
+          # Criar diretório de testes se não existir
+          mkdir -p tests
+          
+          # Criar test básico se não existir
+          if [[ ! -f "tests/test_parsers.py" ]]; then
+            cat << 'EOF' > tests/test_parsers.py
+          import pytest
+          import pandas as pd
+          from datetime import date
+          from parsers.sec_xbrl_parser import SecXbrlParser, parsed_facts_to_dataframe
+
+          def test_parser_initialization():
+              """Test parser can be initialized"""
+              parser = SecXbrlParser()
+              assert parser is not None
+
+          def test_empty_dataframe_conversion():
+              """Test conversion of empty facts list"""
+              df = parsed_facts_to_dataframe([])
+              assert isinstance(df, pd.DataFrame)
+              assert len(df) == 0
+
+          def test_sample_data_validation():
+              """Test basic data validation logic"""
+              # Sample data structures
+              sample_raw_data = {
+                  "cik": "0000320193",
+                  "entityName": "Apple Inc.",
+                  "facts": {
+                      "us-gaap": {
+                          "Revenues": {
+                              "label": "Revenues",
+                              "units": {
+                                  "USD": [
+                                      {
+                                          "end": "2023-09-30",
+                                          "val": 383285000000,
+                                          "fy": 2023,
+                                          "fp": "FY",
+                                          "form": "10-K"
+                                      }
+                                  ]
+                              }
+                          }
+                      }
+                  }
+              }
+              
+              parser = SecXbrlParser()
+              result = parser.parse_company_facts(sample_raw_data)
+              
+              assert result.cik == "0000320193"
+              assert result.company_name == "Apple Inc."
+              assert len(result.facts) > 0
+              assert result.parsed_facts_count > 0
+          EOF
+          fi
+          
+          # Executar testes
+          echo "Running unit tests..."
+          pytest tests/ -v --tb=short -m "not slow" --cov=. --cov-report=term-missing --cov-report=xml || {
+            echo "❌ Some tests failed"
+            exit 1
+          }
+          
+          echo "✅ All tests passed"
+      
+      - name: Upload Coverage Reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-reports
+          path: etl/coverage.xml
+          retention-days: 7
+
+  # ==========================================================================
+  # VALIDAÇÃO DE CONFIGURAÇÕES
+  # ==========================================================================
+  config-validation:
+    name: Configuration Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Validate Environment Template
+        run: |
+          echo "Validating .env.example completeness..."
+          
+          # Verificar se todas as variáveis mencionadas no código existem no .env.example
+          cd etl
+          
+          # Extrair variáveis de ambiente do código
+          grep -r "os.getenv\|env_var" . --include="*.py" | \
+            grep -o '"[A-Z_][A-Z0-9_]*"' | \
+            sort -u > required_vars.txt
+          
+          # Extrair variáveis do .env.example
+          grep "^[A-Z_]" .env.example | cut -d'=' -f1 | sort > example_vars.txt
+          
+          # Comparar
+          MISSING=$(comm -23 required_vars.txt example_vars.txt | sed 's/"//g')
+          
+          if [[ -n "$MISSING" ]]; then
+            echo "❌ Missing variables in .env.example:"
+            echo "$MISSING"
+            exit 1
+          else
+            echo "✅ .env.example is complete"
+          fi
+      
+      - name: Validate dbt Configuration
+        run: |
+          echo "Validating dbt project configuration..."
+          cd dbt_project
+          
+          # Verificar se arquivos obrigatórios existem
+          REQUIRED_FILES=("dbt_project.yml" "profiles_example.yml")
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "❌ Missing required file: $file"
+              exit 1
+            fi
+          done
+          
+          # Validar YAML syntax
+          python -c "
+          import yaml
+          import sys
+          
+          files = ['dbt_project.yml', 'profiles_example.yml']
+          
+          for file in files:
+              try:
+                  with open(file, 'r') as f:
+                      yaml.safe_load(f)
+                  print(f'✅ {file} is valid YAML')
+              except yaml.YAMLError as e:
+                  print(f'❌ {file} has invalid YAML: {e}')
+                  sys.exit(1)
+          "
+      
+      - name: Validate SQL Files
+        run: |
+          echo "Validating SQL files syntax..."
+          cd dbt_project
+          
+          # Verificar se arquivos SQL têm sintaxe básica válida
+          find models/ -name "*.sql" -type f | while read -r file; do
+            if [[ ! -s "$file" ]]; then
+              echo "❌ Empty SQL file: $file"
+              exit 1
+            fi
+            
+            # Verificar se tem SELECT statement
+            if ! grep -q "select\|SELECT" "$file"; then
+              echo "⚠️  No SELECT found in: $file"
+            fi
+          done
+          
+          echo "✅ SQL files validation complete"
+
+  # ==========================================================================
+  # SECURITY SCAN
+  # ==========================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install Security Tools
+        run: |
+          pip install bandit safety
+      
+      - name: Run Bandit Security Scan
+        run: |
+          cd etl
+          echo "Running Bandit security scan..."
+          bandit -r . -f json -o bandit_report.json || {
+            echo "⚠️ Security issues found"
+            bandit -r . -f txt
+          }
+          
+          # Mostrar apenas issues críticos
+          bandit -r . -ll -f txt || echo "Security scan completed with warnings"
+      
+      - name: Check Dependencies for Vulnerabilities
+        run: |
+          cd etl
+          echo "Checking dependencies for known vulnerabilities..."
+          safety check --json || {
+            echo "⚠️ Vulnerable dependencies found"
+            safety check
+          }
+      
+      - name: Upload Security Reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: etl/bandit_report.json
+          retention-days: 30
+
+  # ==========================================================================
+  # QUALITY GATE SUMMARY
+  # ==========================================================================
+  quality-gate-summary:
+    name: Quality Gate Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests, config-validation, security-scan]
+    if: always()
+    
+    steps:
+      - name: Evaluate Quality Gate
+        run: |
+          echo "# Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Verificar status dos jobs
+          JOBS=(
+            "code-quality:${{ needs.code-quality.result }}"
+            "unit-tests:${{ needs.unit-tests.result }}"
+            "config-validation:${{ needs.config-validation.result }}"
+            "security-scan:${{ needs.security-scan.result }}"
+          )
+          
+          FAILED_JOBS=0
+          
+          echo "## Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          for job_info in "${JOBS[@]}"; do
+            JOB_NAME=$(echo $job_info | cut -d':' -f1)
+            JOB_STATUS=$(echo $job_info | cut -d':' -f2)
+            
+            if [[ "$JOB_STATUS" == "success" ]]; then
+              echo "| $JOB_NAME | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+            elif [[ "$JOB_STATUS" == "failure" ]]; then
+              echo "| $JOB_NAME | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+              ((FAILED_JOBS++))
+            elif [[ "$JOB_STATUS" == "cancelled" ]]; then
+              echo "| $JOB_NAME | ⏹️ Cancelled |" >> $GITHUB_STEP_SUMMARY
+              ((FAILED_JOBS++))
+            else
+              echo "| $JOB_NAME | ⚠️ Unknown |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Determinar status geral
+          if [[ $FAILED_JOBS -eq 0 ]]; then
+            echo "## Overall Result: ✅ QUALITY GATE PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "All quality checks passed successfully!" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          else
+            echo "## Overall Result: ❌ QUALITY GATE FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "❌ $FAILED_JOBS quality check(s) failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please fix the failing checks before merging." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi

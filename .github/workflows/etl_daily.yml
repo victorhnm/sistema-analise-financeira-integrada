@@ -1,0 +1,343 @@
+# .github/workflows/etl_daily.yml
+# Workflow para ingestão diária de dados
+# Executa: companies (semanal), fx (diário), facts (diário)
+
+name: ETL Daily Pipeline
+
+on:
+  # Execução agendada (UTC)
+  schedule:
+    - cron: '30 2 * * 1-5'  # Segunda a sexta, 02:30 UTC (após fechamento dos mercados)
+  
+  # Execução manual
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: 'Full refresh (reprocessar todos os dados)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      max_companies:
+        description: 'Máximo de empresas a processar'
+        required: false
+        default: '10'
+        type: string
+      skip_companies:
+        description: 'Pular job de empresas'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  # Configurações Python
+  PYTHON_VERSION: '3.11'
+  PIP_CACHE_DIR: ~/.cache/pip
+  
+  # Configurações ETL
+  LOG_LEVEL: INFO
+  ETL_MAX_WORKERS: 2
+  ETL_CHUNK_SIZE: 500
+
+jobs:
+  # ==========================================================================
+  # JOB 1: INGESTÃO DE EMPRESAS (somente se necessário)
+  # ==========================================================================
+  ingest-companies:
+    name: Ingest Companies Data
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_companies != 'true'
+    
+    outputs:
+      companies_processed: ${{ steps.companies_job.outputs.companies_processed }}
+      job_success: ${{ steps.companies_job.outputs.success }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install ETL Dependencies
+        run: |
+          cd etl
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run Companies Ingestion
+        id: companies_job
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: |
+          cd etl
+          
+          # Executar apenas uma vez por semana (ou se full refresh)
+          SHOULD_RUN_COMPANIES="false"
+          
+          if [[ "${{ github.event.inputs.full_refresh }}" == "true" ]]; then
+            SHOULD_RUN_COMPANIES="true"
+          elif [[ $(date +%u) -eq 1 ]]; then  # Segunda-feira
+            SHOULD_RUN_COMPANIES="true"
+          fi
+          
+          if [[ "$SHOULD_RUN_COMPANIES" == "true" ]]; then
+            echo "Running companies ingestion..."
+            python -m etl.main companies --output-format json > companies_result.json
+            
+            # Extrair métricas do resultado
+            COMPANIES_PROCESSED=$(cat companies_result.json | jq -r '.companies_processed // 0')
+            SUCCESS=$(cat companies_result.json | jq -r '.success // false')
+            
+            echo "companies_processed=$COMPANIES_PROCESSED" >> $GITHUB_OUTPUT
+            echo "success=$SUCCESS" >> $GITHUB_OUTPUT
+            
+            # Upload do resultado para artifact
+            echo "Companies job result:" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat companies_result.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Skipping companies ingestion (not Monday and not full refresh)"
+            echo "companies_processed=0" >> $GITHUB_OUTPUT
+            echo "success=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload Companies Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: companies-results
+          path: etl/companies_result.json
+          retention-days: 7
+
+  # ==========================================================================
+  # JOB 2: INGESTÃO DE TAXAS FX (sempre executar)
+  # ==========================================================================
+  ingest-fx:
+    name: Ingest FX Rates
+    runs-on: ubuntu-latest
+    
+    outputs:
+      rates_ingested: ${{ steps.fx_job.outputs.rates_ingested }}
+      fx_source: ${{ steps.fx_job.outputs.fx_source }}
+      job_success: ${{ steps.fx_job.outputs.success }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install ETL Dependencies
+        run: |
+          cd etl
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run FX Ingestion
+        id: fx_job
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SOURCE_FX: ${{ secrets.SOURCE_FX || 'ECB' }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          cd etl
+          
+          # Definir argumentos baseado no input
+          ARGS=""
+          if [[ "${{ github.event.inputs.full_refresh }}" == "true" ]]; then
+            ARGS="--full-refresh --days-back 90"
+          fi
+          
+          echo "Running FX ingestion with args: $ARGS"
+          python -m etl.main fx $ARGS --output-format json > fx_result.json
+          
+          # Extrair métricas
+          RATES_INGESTED=$(cat fx_result.json | jq -r '.rates_ingested // 0')
+          FX_SOURCE=$(cat fx_result.json | jq -r '.fx_source // "unknown"')
+          SUCCESS=$(cat fx_result.json | jq -r '.success // false')
+          
+          echo "rates_ingested=$RATES_INGESTED" >> $GITHUB_OUTPUT
+          echo "fx_source=$FX_SOURCE" >> $GITHUB_OUTPUT
+          echo "success=$SUCCESS" >> $GITHUB_OUTPUT
+          
+          # Summary
+          echo "FX job result:" >> $GITHUB_STEP_SUMMARY
+          echo "- Source: $FX_SOURCE" >> $GITHUB_STEP_SUMMARY
+          echo "- Rates Ingested: $RATES_INGESTED" >> $GITHUB_STEP_SUMMARY
+          echo "- Success: $SUCCESS" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload FX Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: fx-results
+          path: etl/fx_result.json
+          retention-days: 7
+
+  # ==========================================================================
+  # JOB 3: INGESTÃO DE FATOS FINANCEIROS (dependente de companies)
+  # ==========================================================================
+  ingest-facts:
+    name: Ingest SEC Facts
+    runs-on: ubuntu-latest
+    needs: [ingest-companies]
+    if: always() && (needs.ingest-companies.result == 'success' || needs.ingest-companies.result == 'skipped')
+    
+    outputs:
+      facts_ingested: ${{ steps.facts_job.outputs.facts_ingested }}
+      companies_processed: ${{ steps.facts_job.outputs.companies_processed }}
+      job_success: ${{ steps.facts_job.outputs.success }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install ETL Dependencies
+        run: |
+          cd etl
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run SEC Facts Ingestion
+        id: facts_job
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: |
+          cd etl
+          
+          # Definir argumentos
+          MAX_COMPANIES="${{ github.event.inputs.max_companies || '10' }}"
+          ARGS="--max-companies $MAX_COMPANIES"
+          
+          if [[ "${{ github.event.inputs.full_refresh }}" == "true" ]]; then
+            ARGS="$ARGS --full-refresh"
+          fi
+          
+          echo "Running SEC facts ingestion with args: $ARGS"
+          python -m etl.main facts $ARGS --output-format json > facts_result.json
+          
+          # Extrair métricas
+          FACTS_INGESTED=$(cat facts_result.json | jq -r '.facts_ingested // 0')
+          COMPANIES_PROCESSED=$(cat facts_result.json | jq -r '.companies_processed // 0')
+          SUCCESS=$(cat facts_result.json | jq -r '.success // false')
+          DURATION=$(cat facts_result.json | jq -r '.duration_seconds // 0')
+          
+          echo "facts_ingested=$FACTS_INGESTED" >> $GITHUB_OUTPUT
+          echo "companies_processed=$COMPANIES_PROCESSED" >> $GITHUB_OUTPUT
+          echo "success=$SUCCESS" >> $GITHUB_OUTPUT
+          
+          # Summary
+          echo "SEC Facts job result:" >> $GITHUB_STEP_SUMMARY
+          echo "- Companies Processed: $COMPANIES_PROCESSED" >> $GITHUB_STEP_SUMMARY
+          echo "- Facts Ingested: $FACTS_INGESTED" >> $GITHUB_STEP_SUMMARY
+          echo "- Duration: ${DURATION}s" >> $GITHUB_STEP_SUMMARY
+          echo "- Success: $SUCCESS" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload Facts Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: facts-results
+          path: etl/facts_result.json
+          retention-days: 7
+
+  # ==========================================================================
+  # JOB 4: RELATÓRIO CONSOLIDADO
+  # ==========================================================================
+  pipeline-summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [ingest-companies, ingest-fx, ingest-facts]
+    if: always()
+    
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: results/
+      
+      - name: Generate Pipeline Summary
+        run: |
+          echo "# ETL Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** ${{ github.event.inputs.full_refresh == 'true' && 'Full Refresh' || 'Incremental' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status | Key Metrics |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|-------------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Companies job
+          if [[ "${{ needs.ingest-companies.result }}" == "success" ]]; then
+            COMPANIES_STATUS="✅ Success"
+            COMPANIES_METRICS="${{ needs.ingest-companies.outputs.companies_processed || 0 }} companies"
+          elif [[ "${{ needs.ingest-companies.result }}" == "skipped" ]]; then
+            COMPANIES_STATUS="⏭️ Skipped"
+            COMPANIES_METRICS="N/A"
+          else
+            COMPANIES_STATUS="❌ Failed"
+            COMPANIES_METRICS="N/A"
+          fi
+          echo "| Companies | $COMPANIES_STATUS | $COMPANIES_METRICS |" >> $GITHUB_STEP_SUMMARY
+          
+          # FX job
+          if [[ "${{ needs.ingest-fx.result }}" == "success" ]]; then
+            FX_STATUS="✅ Success"
+            FX_METRICS="${{ needs.ingest-fx.outputs.rates_ingested || 0 }} rates from ${{ needs.ingest-fx.outputs.fx_source || 'unknown' }}"
+          else
+            FX_STATUS="❌ Failed"
+            FX_METRICS="N/A"
+          fi
+          echo "| FX Rates | $FX_STATUS | $FX_METRICS |" >> $GITHUB_STEP_SUMMARY
+          
+          # Facts job
+          if [[ "${{ needs.ingest-facts.result }}" == "success" ]]; then
+            FACTS_STATUS="✅ Success"
+            FACTS_METRICS="${{ needs.ingest-facts.outputs.facts_ingested || 0 }} facts, ${{ needs.ingest-facts.outputs.companies_processed || 0 }} companies"
+          else
+            FACTS_STATUS="❌ Failed"
+            FACTS_METRICS="N/A"
+          fi
+          echo "| SEC Facts | $FACTS_STATUS | $FACTS_METRICS |" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall status
+          echo "" >> $GITHUB_STEP_SUMMARY
+          CRITICAL_JOBS_SUCCESS=true
+          if [[ "${{ needs.ingest-fx.result }}" != "success" ]] || [[ "${{ needs.ingest-facts.result }}" != "success" ]]; then
+            CRITICAL_JOBS_SUCCESS=false
+          fi
+          
+          if [[ "$CRITICAL_JOBS_SUCCESS" == "true" ]]; then
+            echo "## Overall Status: ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Overall Status: ❌ FAILED" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+      
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "Pipeline failed - consider setting up notifications here"
+          # Exemplo: enviar para Slack, email, etc.

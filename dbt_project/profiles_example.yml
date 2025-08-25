@@ -1,0 +1,89 @@
+# profiles_example.yml - Exemplo de configuração de perfis dbt
+# INSTRUÇÃO: Copie este arquivo para ~/.dbt/profiles.yml e preencha com suas credenciais
+# Supabase Connection via Postgres adapter
+
+integrated_financial_analysis:
+  target: dev
+  outputs:
+    
+    # Desenvolvimento local
+    dev:
+      type: postgres
+      host: "{{ env_var('SUPABASE_HOST') }}"  # Ex: abc123.supabase.co
+      user: "{{ env_var('SUPABASE_USER') }}"  # Ex: postgres
+      password: "{{ env_var('SUPABASE_PASSWORD') }}"  # Sua senha do projeto
+      port: "{{ env_var('SUPABASE_PORT', 5432) }}"
+      dbname: "{{ env_var('SUPABASE_DBNAME', 'postgres') }}"
+      schema: core  # Schema padrão para modelos
+      threads: 4
+      keepalives_idle: 0
+      search_path: "core,staging,raw,marts,public"
+      sslmode: require
+      
+    # Produção (GitHub Actions)
+    prod:
+      type: postgres
+      host: "{{ env_var('SUPABASE_HOST') }}"
+      user: "{{ env_var('SUPABASE_USER') }}" 
+      password: "{{ env_var('SUPABASE_PASSWORD') }}"
+      port: "{{ env_var('SUPABASE_PORT', 5432) }}"
+      dbname: "{{ env_var('SUPABASE_DBNAME', 'postgres') }}"
+      schema: core
+      threads: 8  # Mais threads em produção
+      keepalives_idle: 0
+      search_path: "core,staging,raw,marts,public"
+      sslmode: require
+
+# =============================================================================
+# INSTRUÇÕES DE CONFIGURAÇÃO
+# =============================================================================
+
+# 1. COPIAR ARQUIVO:
+#    cp profiles_example.yml ~/.dbt/profiles.yml
+
+# 2. DEFINIR VARIÁVEIS DE AMBIENTE (.env ou sistema):
+#    export SUPABASE_HOST="your-project.supabase.co"
+#    export SUPABASE_USER="postgres"  
+#    export SUPABASE_PASSWORD="your-password"
+#    export SUPABASE_PORT="5432"
+#    export SUPABASE_DBNAME="postgres"
+
+# 3. TESTAR CONEXÃO:
+#    dbt debug --profiles-dir ~/.dbt
+
+# 4. CONFIGURAR GITHUB SECRETS (para CI/CD):
+#    - SUPABASE_HOST
+#    - SUPABASE_USER  
+#    - SUPABASE_PASSWORD
+#    - SUPABASE_DBNAME (opcional)
+#    - SUPABASE_PORT (opcional)
+
+# =============================================================================
+# INFORMAÇÕES SUPABASE
+# =============================================================================
+
+# HOST: Encontre em Settings > Database > Connection String
+# USER: Sempre "postgres" por padrão
+# PASSWORD: Definida na criação do projeto
+# PORT: 5432 (padrão)
+# DBNAME: "postgres" (padrão)
+
+# Connection String Format (referência):
+# postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres?sslmode=require
+
+# =============================================================================
+# TROUBLESHOOTING
+# =============================================================================
+
+# Erro "Could not connect to server":
+# - Verificar se o host está correto (sem https://)
+# - Confirmar que a senha não tem caracteres especiais não escapados
+# - Testar conexão direta: psql "postgresql://postgres:password@host:5432/postgres"
+
+# Erro de SSL:
+# - Sempre usar sslmode: require para Supabase
+# - Verificar firewall/proxy corporativo
+
+# Erro de schema:
+# - Confirmar que os schemas (raw, staging, core, marts) foram criados
+# - Verificar permissões do usuário postgres nos schemas

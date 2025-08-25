@@ -1,0 +1,106 @@
+# exposures.yml - Documentação de como os modelos são consumidos
+
+version: 2
+
+exposures:
+  - name: power_bi_executive_dashboard
+    label: "Power BI - Dashboard Executivo"
+    type: dashboard
+    maturity: medium
+    url: https://app.powerbi.com/  
+    description: >
+      Dashboard executivo com visão consolidada de performance financeira,
+      incluindo métricas TTM, crescimento YoY e análise comparativa por setor.
+      
+      **Páginas principais:**
+      - Visão Executiva: KPIs de alto nível e trends
+      - Performance: Análise de rentabilidade e crescimento  
+      - Liquidez: Cash flow e ratios de solvência
+      
+    owner:
+      name: "Financial Analysis Team"
+      email: "finance-analytics@company.com"
+    
+    depends_on:
+      - ref('fact_financials_ttm')
+      - ref('fact_financials_quarterly') 
+      - ref('stg_companies')
+      
+    tags: ['bi', 'executive', 'financial']
+
+  - name: power_bi_financial_analysis
+    label: "Power BI - Análise Financeira Detalhada"
+    type: dashboard
+    maturity: medium
+    description: >
+      Dashboard detalhado para analistas financeiros com drill-down 
+      por empresa, métricas históricas e análise de ratios.
+      
+      **Recursos principais:**
+      - Análise temporal com séries históricas
+      - Comparação peer-to-peer por setor
+      - Decomposição DuPont (ROE = Net Margin × Asset Turnover × Equity Multiplier)
+      - Análise de qualidade de lucros (Cash vs Earnings)
+      
+    owner:
+      name: "Data Analytics Team"
+      email: "data-analytics@company.com"
+    
+    depends_on:
+      - ref('fact_financials_ttm')
+      - ref('fact_financials_quarterly')
+      - ref('int_financial_facts_with_fx')
+      - ref('stg_companies')
+      - ref('stg_fx_rates')
+      
+    tags: ['bi', 'analysis', 'financial', 'detailed']
+
+  - name: fastapi_financial_endpoints
+    label: "FastAPI - Endpoints Financeiros"
+    type: application
+    maturity: medium
+    url: https://api.financial-analysis.com/docs
+    description: >
+      API REST para acesso programático aos dados financeiros.
+      
+      **Endpoints principais:**
+      - /companies: Lista de empresas com filtros
+      - /facts: Consulta de métricas financeiras com paginação
+      - /ttm: Métricas TTM e ratios calculados
+      - /health: Health check da API
+      
+    owner:
+      name: "Data Engineering Team"
+      email: "data-engineering@company.com"
+    
+    depends_on:
+      - ref('fact_financials_ttm')
+      - ref('fact_financials_quarterly')
+      - ref('stg_companies')
+      
+    tags: ['api', 'rest', 'financial']
+
+  - name: data_quality_monitoring
+    label: "Monitoramento de Qualidade de Dados"
+    type: application
+    maturity: high
+    description: >
+      Sistema de monitoramento contínuo da qualidade dos dados financeiros.
+      
+      **Métricas monitoradas:**
+      - Completude de dados por empresa/período
+      - Consistência de valores entre statements
+      - Detecção de outliers e anomalias
+      - Validação de ratios contra benchmarks do setor
+      
+    owner:
+      name: "Data Quality Team"
+      email: "data-quality@company.com"
+    
+    depends_on:
+      - ref('stg_financial_facts')
+      - ref('int_financial_facts_with_fx')
+      - ref('fact_financials_quarterly')
+      - ref('fact_financials_ttm')
+      
+    tags: ['quality', 'monitoring', 'governance']

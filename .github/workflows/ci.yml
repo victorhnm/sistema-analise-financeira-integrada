@@ -1,0 +1,271 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PYTHON_VERSION: '3.11'
+  DBT_VERSION: '1.7.0'
+
+jobs:
+  lint-and-format:
+    runs-on: ubuntu-latest
+    name: Lint and Format
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort mypy
+        pip install -r requirements.txt
+    
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Check formatting with black
+      run: black --check .
+    
+    - name: Check import sorting with isort
+      run: isort --check-only .
+    
+    - name: Type check with mypy
+      run: mypy . --ignore-missing-imports
+
+  test:
+    runs-on: ubuntu-latest
+    name: Tests
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio
+    
+    - name: Set up test environment
+      run: |
+        cp .env.example .env
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_db" >> .env
+        echo "SEC_USER_AGENT=Test User test@example.com" >> .env
+    
+    - name: Initialize test database
+      run: |
+        python scripts/setup/setup_database.py --skip-confirmation
+    
+    - name: Run tests
+      run: |
+        pytest tests/ -v --cov=. --cov-report=xml --cov-report=html
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: success()
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  dbt-test:
+    runs-on: ubuntu-latest
+    name: dbt Tests
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: dbt_test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dbt
+      run: |
+        python -m pip install --upgrade pip
+        pip install dbt-postgres==${{ env.DBT_VERSION }}
+    
+    - name: Set up dbt profiles
+      run: |
+        mkdir -p ~/.dbt
+        cat << EOF > ~/.dbt/profiles.yml
+        integrated_financial_analysis:
+          target: test
+          outputs:
+            test:
+              type: postgres
+              host: localhost
+              user: postgres
+              password: postgres
+              port: 5432
+              dbname: dbt_test_db
+              schema: core
+              threads: 2
+        EOF
+    
+    - name: Create test data
+      run: |
+        PGPASSWORD=postgres psql -h localhost -U postgres -d dbt_test_db -c "
+          CREATE SCHEMA IF NOT EXISTS raw;
+          CREATE SCHEMA IF NOT EXISTS staging;
+          CREATE SCHEMA IF NOT EXISTS core;
+          CREATE SCHEMA IF NOT EXISTS marts;
+        "
+    
+    - name: dbt dependencies
+      run: cd dbt_project && dbt deps
+    
+    - name: dbt compile
+      run: cd dbt_project && dbt compile --target test
+    
+    - name: dbt test
+      run: cd dbt_project && dbt test --target test
+
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Security Scan
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+    
+    - name: Run safety check
+      run: safety check --json || true
+    
+    - name: Run bandit security scan
+      run: bandit -r . -x tests/ || true
+
+  build-and-validate:
+    runs-on: ubuntu-latest
+    name: Build and Validate
+    needs: [lint-and-format, test, dbt-test]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Validate API startup
+      run: |
+        cp .env.example .env
+        echo "SEC_USER_AGENT=Test User test@example.com" >> .env
+        timeout 10s python api/app.py || code=$?; if [[ $code -ne 124 && $code -ne 0 ]]; then exit $code; fi
+    
+    - name: Generate documentation
+      run: |
+        pip install mkdocs mkdocs-material
+        # mkdocs build --site-dir site
+
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy
+    needs: [build-and-validate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to production
+      run: |
+        echo "Deployment would happen here"
+        # Add actual deployment logic here
+        # Examples:
+        # - Deploy to cloud provider
+        # - Update database schemas
+        # - Refresh Power BI datasets
+    
+    - name: Notify deployment
+      if: success()
+      run: |
+        echo "Deployment successful!"
+        # Add notification logic (Slack, email, etc.)
+
+  cleanup:
+    runs-on: ubuntu-latest
+    name: Cleanup
+    needs: [deploy]
+    if: always()
+    
+    steps:
+    - name: Cleanup artifacts
+      run: |
+        echo "Cleanup would happen here"
+        # Add cleanup logic for temporary resources
